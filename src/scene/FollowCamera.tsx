@@ -53,6 +53,8 @@ export function FollowCamera() {
       minDistance={4}
       maxDistance={30}
       enableDamping
+      zoomSpeed={0.8}
+      touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
     />
   );
 }
