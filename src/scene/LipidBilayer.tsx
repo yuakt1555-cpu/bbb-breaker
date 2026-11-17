@@ -12,6 +12,19 @@ const TAIL_RADIUS = 0.045;
 const TAIL_DX = 0.12;
 const X_MIN = WORLD.xMin;
 const X_MAX = PARACELLULAR.xMin; // 細胞は x ∈ [-12, 8)
+const FADE_NEAR = 3; // これより近い（view space 距離）と完全に透明
+const FADE_FAR = 7; // これ以上遠いと元の不透明度
+
+const fadeCacheKey = () => 'bilayer-near-fade';
+
+/** カメラに近い部分ほど alpha を下げ、手前の脂質が視界をふさがないようにする。 */
+function fadeNearCamera(shader: { fragmentShader: string }) {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <dithering_fragment>',
+    `#include <dithering_fragment>
+    gl_FragColor.a *= smoothstep(${FADE_NEAR.toFixed(1)}, ${FADE_FAR.toFixed(1)}, length(vViewPosition));`,
+  );
+}
 
 interface Props {
   zStart: number;
@@ -128,6 +141,8 @@ export function LipidBilayer({ zStart, spec = ZONES.luminalMembrane }: Props) {
           opacity={0.7}
           roughness={0.4}
           depthWrite={false}
+          onBeforeCompile={fadeNearCamera}
+          customProgramCacheKey={fadeCacheKey}
         />
       </instancedMesh>
       <instancedMesh key={`t${lipids.length}`} ref={tailRef} args={[tailGeo, undefined, lipids.length * 2]} frustumCulled={false}>
@@ -139,6 +154,8 @@ export function LipidBilayer({ zStart, spec = ZONES.luminalMembrane }: Props) {
           opacity={0.5}
           roughness={0.6}
           depthWrite={false}
+          onBeforeCompile={fadeNearCamera}
+          customProgramCacheKey={fadeCacheKey}
         />
       </instancedMesh>
     </group>

@@ -6,6 +6,10 @@ import { createInitialPhysicsState, physicsRef } from '../state/runtime';
 import { getCombinedInput } from '../state/input';
 import { useSimStore } from '../state/store';
 import { stepPhysics } from '../logic/physics';
+import { PHYS } from '../constants/world';
+
+/** 1 フレームで進めるゲーム内時間の上限（秒）。タブ復帰時などの暴走防止。 */
+const MAX_FRAME_DELTA = 0.25;
 
 /** 描画なし。入力 → stepPhysics → physicsRef / ストア反映のループを担う。 */
 export function MoleculeController() {
@@ -40,7 +44,14 @@ export function MoleculeController() {
     }
     const move: Vec3 = [mx, my, mz];
 
-    const result = stepPhysics(physicsRef.current, { move, dt: delta }, store.params, store.env);
+    // 低 fps でもゲーム内時間が実時間どおり進むよう、PHYS.MAX_DT 以下の均等なサブステップに分割する
+    const frameDt = Math.min(delta, MAX_FRAME_DELTA);
+    const steps = Math.max(1, Math.ceil(frameDt / PHYS.MAX_DT));
+    const subDt = frameDt / steps;
+    let result = stepPhysics(physicsRef.current, { move, dt: subDt }, store.params, store.env);
+    for (let i = 1; i < steps && !result.reachedGoal; i++) {
+      result = stepPhysics(result.state, { move, dt: subDt }, store.params, store.env);
+    }
     physicsRef.current = result.state;
 
     const route = result.area === 'lumen' && result.state.effluxCount === 0 ? null : result.state.route;
