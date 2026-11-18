@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ComponentType } from 'react';
 import {
   Activity,
@@ -11,6 +12,8 @@ import {
   Gauge,
   Keyboard,
   Lock,
+  Maximize2,
+  Minimize2,
   ShieldAlert,
   Undo2,
   Waves,
@@ -52,6 +55,53 @@ const STAGES: { id: AreaId; short: string }[] = [
   { id: 'brain', short: '⑤' },
 ];
 
+const COMPACT_KEY = 'bbb.hudCompact';
+
+const TONE_DOT: Record<Tone, string> = {
+  ok: 'bg-emerald-400',
+  info: 'bg-cyan-400',
+  warn: 'bg-amber-400',
+  danger: 'bg-rose-400',
+};
+
+function readInitialCompact(): boolean {
+  const fallback = typeof window !== 'undefined' && window.innerWidth < 768;
+  try {
+    const v = window.localStorage.getItem(COMPACT_KEY);
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch (e) {
+    console.warn('HUD 設定の読み込みに失敗しました', e);
+  }
+  return fallback;
+}
+
+function saveCompact(compact: boolean): void {
+  try {
+    window.localStorage.setItem(COMPACT_KEY, compact ? '1' : '0');
+  } catch (e) {
+    console.warn('HUD 設定の保存に失敗しました', e);
+  }
+}
+
+/** マウント時に opacity / scale でフェードインするラッパー（170ms） */
+function Enter({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return (
+    <div
+      className={`origin-top-left transition duration-[170ms] ease-out ${
+        shown ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 function formatPercent(p: number): string {
   if (!Number.isFinite(p)) return '0.00000';
   if (p >= 1) return Math.min(p, 100).toFixed(2);
@@ -83,6 +133,12 @@ export function Hud() {
   const effluxCount = useSimStore((s) => s.effluxCount);
   const profile = useDrugProfile();
   const [hintOpen, setHintOpen] = useState(true);
+  const [compact, setCompact] = useState<boolean>(readInitialCompact);
+
+  const changeCompact = (next: boolean) => {
+    setCompact(next);
+    saveCompact(next);
+  };
 
   const unionized = Math.max(0, Math.min(100, profile.unionizedPercent));
   const statusInfo = STATUS_LABELS[status];
@@ -90,10 +146,69 @@ export function Hud() {
   const warning = warningFor(status, effluxCount);
   const currentIdx = STAGES.findIndex((s) => s.id === area);
 
+  const warningBox = (isCompact: boolean) =>
+    warning && (
+      <div
+        role="alert"
+        className={`animate-pulse rounded-xl border font-semibold shadow backdrop-blur-md ${
+          isCompact ? 'max-w-[calc(100vw-5rem)] px-2.5 py-1 text-[11px]' : 'px-3 py-2 text-xs'
+        } ${
+          warning.tone === 'danger'
+            ? 'border-rose-400/60 bg-rose-950/70 text-rose-200'
+            : 'border-amber-400/60 bg-amber-950/70 text-amber-200'
+        }`}
+      >
+        <div className={`flex gap-2 ${isCompact ? 'items-center' : 'items-start'}`}>
+          {warning.tone === 'danger' ? (
+            <ShieldAlert className={`h-4 w-4 shrink-0 ${isCompact ? '' : 'mt-0.5'}`} />
+          ) : (
+            <AlertTriangle className={`h-4 w-4 shrink-0 ${isCompact ? '' : 'mt-0.5'}`} />
+          )}
+          <span className={isCompact ? 'truncate' : ''}>{warning.text}</span>
+        </div>
+      </div>
+    );
+
+  if (compact) {
+    const areaShort = area === 'paracellular' ? '間' : (STAGES.find((s) => s.id === area)?.short ?? '');
+    return (
+      <div className="pointer-events-none absolute top-3 left-3 z-10 flex flex-col items-start gap-1.5 text-slate-100">
+        <Enter>
+          <button
+            type="button"
+            onClick={() => changeCompact(false)}
+            aria-label="HUDを展開"
+            className="pointer-events-auto flex h-10 max-w-[calc(100vw-5rem)] items-center gap-2 rounded-xl border border-cyan-500/20 bg-slate-950/70 px-3 shadow backdrop-blur-md"
+          >
+            <span className="font-mono text-sm font-bold text-cyan-200 tabular-nums">
+              {formatPercent(profile.unionizedPercent)}
+              <span className="text-[10px] text-cyan-300/80">%</span>
+            </span>
+            <span className="h-4 w-px bg-slate-700" aria-hidden="true" />
+            <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_DOT[statusInfo.tone]}`} aria-hidden="true" />
+            <StatusIcon className="h-4 w-4 shrink-0 text-slate-200" />
+            <span className="font-mono text-sm text-slate-200">{areaShort}</span>
+            <Maximize2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          </button>
+        </Enter>
+        {warningBox(true)}
+      </div>
+    );
+  }
+
   return (
     <div className="pointer-events-none absolute top-3 left-3 z-10 w-[min(300px,calc(100vw-1.5rem))] space-y-2 text-slate-100">
-      <div className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-3 shadow backdrop-blur-md">
-        <div className="text-[10px] font-semibold tracking-widest text-cyan-300/80 uppercase">
+      <Enter>
+      <div className="relative rounded-xl border border-cyan-500/20 bg-slate-950/70 p-3 shadow backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => changeCompact(true)}
+          aria-label="HUDを最小化"
+          className="pointer-events-auto absolute top-1 right-1 flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:text-cyan-200"
+        >
+          <Minimize2 className="h-4 w-4" />
+        </button>
+        <div className="pr-9 text-[10px] font-semibold tracking-widest text-cyan-300/80 uppercase">
           分子形（非解離型）比率
         </div>
         <div className="mt-0.5 flex items-baseline gap-1">
@@ -153,25 +268,9 @@ export function Hud() {
         </div>
       </div>
 
-      {warning && (
-        <div
-          role="alert"
-          className={`animate-pulse rounded-xl border px-3 py-2 text-xs font-semibold shadow backdrop-blur-md ${
-            warning.tone === 'danger'
-              ? 'border-rose-400/60 bg-rose-950/70 text-rose-200'
-              : 'border-amber-400/60 bg-amber-950/70 text-amber-200'
-          }`}
-        >
-          <div className="flex items-start gap-2">
-            {warning.tone === 'danger' ? (
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            ) : (
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            )}
-            <span>{warning.text}</span>
-          </div>
-        </div>
-      )}
+      </Enter>
+
+      {warningBox(false)}
 
       <div className="rounded-xl border border-cyan-500/20 bg-slate-950/70 shadow backdrop-blur-md">
         <button

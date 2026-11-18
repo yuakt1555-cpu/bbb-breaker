@@ -634,6 +634,11 @@ export const PRESET_ORDER: PresetId[] = ['diazepam', 'domperidone', 'loperamide'
   6. 「リスタート」ボタン（resetRun）
 - **ClearModal**: `clearInfo` があるとき表示。紙吹雪/グロー演出、薬物名（presetId が null なら「カスタム薬物」）、ルート、所要時間、P-gp 排出回数、最終パラメータ、プリセットの explanation と keyPoints（カスタムなら DrugProfile から自動生成した解説）、「もう一度」（resetRun）と「閉じる」（closeModal）。
 - **Hud**（左上）: 分子形比率 %（大きな数字＋バー）、膜透過ステータス（tone 色のバッジ＋アイコン）、現在エリア。警告バナー: lipidTrapped / pgpEfflux / tightJunctionBlocked / repelled*。操作ヒント（PC: WASD・矢印・Space/Shift 上下・ドラッグで回転・ホイールでズーム・R でリスタート／スマホ: 左下スティック・ピンチでズーム）。
+- **Hud の折りたたみ（コンパクト表示）**: HUD 右上の最小化ボタン（lucide `Minimize2` / `Maximize2`、`aria-label` 付き、タップ領域 ≥ 36px）で「展開表示」と「コンパクト表示」を切り替える。状態は Hud 内のローカル state（ストアは変更しない）。
+  - コンパクト表示: 高さ約 40px の 1 行ピル（`w-auto`、最大幅 `calc(100vw - 5rem)`。右上のパネル開閉ボタンと重ならない）。内容 = 分子形 %（font-mono）・ステータスの tone 色ドット＋アイコン・エリア番号（①〜⑤ / 細胞間隙は「間」）。ピル全体をタップすると展開。
+  - コンパクト時も警告（lipidTrapped / pgpEfflux / tightJunctionBlocked / repelled*）は、ピル直下に 1 行の小さなバナーで表示する。操作ヒントは非表示。
+  - 初期値: 画面幅 < 768px ならコンパクト、それ以上は展開。ユーザーの選択は `localStorage`（キー `bbb.hudCompact`）に保存し、次回はそれを優先する。読み書きは try/catch で囲み、失敗時は初期値で動作する（例外は握りつぶさず `console.warn`）。
+  - 切り替えは 150–200ms 程度のトランジション。
 - **useKeyboardControls**: `keydown/keyup` で `inputState.keyboard` を更新。W/↑ = forward +1、S/↓ = −1、D/→ = right +1、A/← = −1、Space = up +1、Shift = −1、R = resetRun。`event.target` が input/textarea/select/button の場合は無視（スライダー操作と干渉させない）。`blur` で全軸 0。
 - **VirtualJoystick**（T5）: 左下固定（`bottom-6 left-6`、直径 ~120px）。Pointer Events で操作し、ノブの変位を `inputState.joystick.forward/right` に書く（上方向 = forward +）。離したら 0。`touch-action: none`。PC でも表示してよいが md 以上では半透明。
 
